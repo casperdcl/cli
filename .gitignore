@@ -11,3 +11,6 @@
 
 # macOS
 .DS_Store
+
+# snap
+/gh_*.snap
