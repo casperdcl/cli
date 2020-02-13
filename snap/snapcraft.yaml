@@ -25,9 +25,11 @@ parts:
     override-build: |
       LDFLAGS='' make -j2
       cp bin/gh $SNAPCRAFT_PART_INSTALL/
+      bin/gh completion -s bash > $SNAPCRAFT_PART_INSTALL/completion.sh
 apps:
   gh:
     command: gh
     plugs:
     - home
     - network
+    completer: completion.sh
