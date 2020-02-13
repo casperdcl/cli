@@ -5,7 +5,7 @@ adopt-info: gh
 grade: stable
 confinement: strict  # classic
 base: core18
-license: MIT
+license: MIT License
 package-management:  # snap refresh snapcraft --channel=edge/pr-2911
   repositories:
     - source: ppa:longsleep/golang-backports
