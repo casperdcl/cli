@@ -3,7 +3,7 @@ summary: The GitHub CLI
 description: https://cli.github.com
 adopt-info: gh
 grade: stable
-confinement: devmode  # classic
+confinement: strict  # classic
 base: core18
 license: MIT
 package-management:  # snap refresh snapcraft --channel=edge/pr-2911
@@ -12,8 +12,6 @@ package-management:  # snap refresh snapcraft --channel=edge/pr-2911
 parts:
   gh:
     plugin: make
-    artifacts:
-    - bin/gh
     source: .
     build-packages:
     - golang-go
@@ -30,3 +28,6 @@ parts:
 apps:
   gh:
     command: gh
+    plugs:
+    - home
+    - network
