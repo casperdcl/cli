@@ -14,7 +14,6 @@ parts:
     plugin: make
     artifacts:
     - bin/gh
-    make-parameters: ["LDFLAGS="]
     source: .
     build-packages:
     - golang-go
@@ -24,7 +23,10 @@ parts:
     - git
     override-pull: |
       snapcraftctl pull
-      snapcraftctl set-version `git describe --tags`
+      snapcraftctl set-version `git describe --tags 2>/dev/null || git rev-parse --short HEAD`
+    override-build: |
+      LDFLAGS='' make -j2
+      cp bin/gh $SNAPCRAFT_PART_INSTALL/
 apps:
   gh:
     command: gh
