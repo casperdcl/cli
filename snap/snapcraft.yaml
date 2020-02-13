@@ -1,0 +1,30 @@
+name: gh
+summary: The GitHub CLI
+description: https://cli.github.com
+adopt-info: gh
+grade: stable
+confinement: devmode  # classic
+base: core18
+license: MIT
+package-management:  # snap refresh snapcraft --channel=edge/pr-2911
+  repositories:
+    - source: ppa:longsleep/golang-backports
+parts:
+  gh:
+    plugin: make
+    artifacts:
+    - bin/gh
+    make-parameters: ["LDFLAGS="]
+    source: .
+    build-packages:
+    - golang-go
+    - git
+    stage-packages:
+    - golang-go
+    - git
+    override-pull: |
+      snapcraftctl pull
+      snapcraftctl set-version `git describe --tags`
+apps:
+  gh:
+    command: gh
