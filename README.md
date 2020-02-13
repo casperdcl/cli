@@ -107,6 +107,15 @@ For more information, see [Linux & BSD installation](./docs/install_linux.md).
 
 MSI installers are available for download on the [releases page][].
 
+### Snapcraft
+
+Install:
+
+1. Ensure [`snapd` is installed](https://snapcraft.io/docs/installing-snapd)
+2. `sudo snap install gh`
+
+Updates are automatically checked for (and if available, downloaded) every 6 hours.
+
 ### Codespaces
 
 To add GitHub CLI to your codespace, add the following to your [devcontainer file](https://docs.github.com/en/codespaces/setting-up-your-project-for-codespaces/adding-features-to-a-devcontainer-file):
