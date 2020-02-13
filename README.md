@@ -69,6 +69,15 @@ For more information and distro-specific instructions, see the [Linux installati
 
 MSI installers are available for download on the [releases page][].
 
+### Snapcraft
+
+Install:
+
+1. Ensure [`snapd` is installed](https://snapcraft.io/docs/installing-snapd)
+2. `sudo snap install --edge gh`
+
+Updates are automatically checked for (and if available, downloaded) every 6 hours.
+
 ### Other platforms
 
 Download packaged binaries from the [releases page][].
