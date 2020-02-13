@@ -475,11 +475,11 @@ To upgrade:
 webi gh@stable
 ```
 
-## Discouraged
+### Snapcraft
 
-> [!WARNING]
-> The GitHub CLI team actively discourages use of the following methods of installation.
+To install:
 
-### Snap
+1. Ensure [`snapd` is installed](https://snapcraft.io/docs/installing-snapd)
+2. `sudo snap install gh`
 
-The [GitHub CLI package](https://snapcraft.io/gh) has [so many issues with Snap](https://github.com/casperdcl/cli/issues/7) as a runtime mechanism for apps like GitHub CLI that our team suggests _never installing gh as a snap_.
+Updates are automatically checked for (and if available, downloaded) every 6 hours.
