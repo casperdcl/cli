@@ -57,6 +57,15 @@ Upgrade: `scoop update gh`
 
 Signed MSI installers are also available on the [releases page][].
 
+### Snapcraft
+
+Install:
+
+1. Ensure [`snapd` is installed](https://snapcraft.io/docs/installing-snapd)
+2. `sudo snap install --edge gh`
+
+Updates are automatically checked for (and if available, downloaded) every 6 hours.
+
 ### Debian/Ubuntu Linux
 
 Install and upgrade:
