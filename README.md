@@ -83,6 +83,15 @@ For more information, see [Linux & BSD installation](./docs/install_linux.md).
 
 MSI installers are available for download on the [releases page][].
 
+### Snapcraft
+
+Install:
+
+1. Ensure [`snapd` is installed](https://snapcraft.io/docs/installing-snapd)
+2. `sudo snap install gh`
+
+Updates are automatically checked for (and if available, downloaded) every 6 hours.
+
 ### GitHub Actions
 
 GitHub CLI comes pre-installed in all [GitHub-Hosted Runners](https://docs.github.com/en/actions/using-github-hosted-runners/about-github-hosted-runners).
