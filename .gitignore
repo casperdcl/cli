@@ -34,3 +34,6 @@
 *~
 
 vendor/
+
+# snap
+/gh_*.snap
