@@ -479,7 +479,7 @@ webi gh@stable
 
 To install:
 
-1. Ensure [`snapd` is installed](https://snapcraft.io/docs/installing-snapd)
-2. `sudo snap install gh`
+1. `sudo snap install gh`
+2. `sudo snap connect gh:ssh-keys` grant ssh access
 
 Updates are automatically checked for (and if available, downloaded) every 6 hours.
