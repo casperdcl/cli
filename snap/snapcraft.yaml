@@ -29,6 +29,7 @@ parts:
     - git
     stage-packages:
     - git
+    - ssh
     override-pull: |
       snapcraftctl pull
       snapcraftctl set-version `(git describe --tags | sed 's/^v//') 2>/dev/null || git rev-parse --short HEAD`
@@ -42,4 +43,5 @@ apps:
     plugs:
     - home
     - network
+    - ssh-keys
     completer: completion.sh
