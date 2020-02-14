@@ -1,6 +1,18 @@
 name: gh
 summary: The GitHub CLI
-description: https://cli.github.com
+description: |
+  https://cli.github.com
+
+  **`gh` - The GitHub CLI tool**
+
+  `gh` is GitHub on the command line, and it's now available in beta. It brings pull requests, issues, and other GitHub concepts to
+  the terminal next to where you are already working with `git` and your code.
+
+  _Usage_
+
+  - `gh pr [status, list, view, checkout, create]`
+  - `gh issue [status, list, view, create]`
+  - `gh help`
 adopt-info: gh
 grade: stable
 confinement: strict  # classic
