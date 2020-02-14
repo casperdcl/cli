@@ -43,5 +43,7 @@ apps:
     plugs:
     - home
     - network
+    - network-bind
+    - desktop
     - ssh-keys
     completer: completion.sh
