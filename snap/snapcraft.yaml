@@ -18,18 +18,16 @@ grade: stable
 confinement: strict  # classic
 base: core18
 license: MIT
-package-management:  # snap refresh snapcraft --channel=edge/pr-2911
-  repositories:
-    - source: ppa:longsleep/golang-backports
 parts:
   gh:
     plugin: make
     source: .
+    build-snaps:
+    - go
+    - snapd
     build-packages:
-    - golang-go
     - git
     stage-packages:
-    - golang-go
     - git
     override-pull: |
       snapcraftctl pull
