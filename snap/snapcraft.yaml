@@ -27,6 +27,7 @@ parts:
     - snapd
     build-packages:
     - git
+    - gcc
     stage-packages:
     - git
     - ssh
