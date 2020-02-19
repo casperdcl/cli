@@ -30,6 +30,7 @@ parts:
     - gcc
     stage-packages:
     - git
+    - nano
     - ssh
     override-pull: |
       snapcraftctl pull
@@ -48,3 +49,5 @@ apps:
     - desktop
     - ssh-keys
     completer: completion.sh
+    environment:
+      GIT_EDITOR: nano
