@@ -1,8 +1,5 @@
-blank_issues_enabled: true
+blank_issues_enabled: false
 contact_links:
-  - name: Ask a question on how to use GitHub CLI
-    about: For general-purpose questions and answers, see the Discussions section.
-    url: https://github.com/cli/cli/discussions
-  - name: Ask a question about the GitHub API
-    about: Please check out the GitHub community forum for discussions about the GitHub API.
-    url: https://github.community/c/github-ecosystem/37
+  - name: "GitHub CLI issues"
+    url: https://github.com/cli/cli/issues/new/choose
+    about: "Go to the upstream repository for anything unrelated to the snap packaging"
