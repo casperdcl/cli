@@ -13,6 +13,11 @@ description: |
   - `gh pr [status, list, view, checkout, create]`
   - `gh issue [status, list, view, create]`
   - `gh help`
+  
+  If you want to use `ssh` to connect to GitHub, please enable the `ssh-keys` interface with the following command:
+  
+  `snap connect gh:ssh-keys`
+  
 adopt-info: gh
 grade: stable
 confinement: strict  # classic
