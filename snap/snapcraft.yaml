@@ -1,53 +1,53 @@
 name: gh
-summary: The GitHub CLI
+summary: Unofficial Snap package for GitHub-CLI
 description: |
-  https://cli.github.com
-
   **`gh` - The GitHub CLI tool**
-
   `gh` is GitHub on the command line, and it's now available in beta. It brings pull requests, issues, and other GitHub concepts to
   the terminal next to where you are already working with `git` and your code.
-
   _Usage_
-
   - `gh pr [status, list, view, checkout, create]`
   - `gh issue [status, list, view, create]`
   - `gh help`
-adopt-info: gh
+version: git
+contact: https://github.com/casperdcl/cli
+issues: https://github.com/casperdcl/cli/issues
+source-code: https://github.com/casperdcl/cli
+website: https://cli.github.com
 grade: stable
-confinement: strict  # classic
-base: core18
+confinement: classic
+base: bare
+build-base: core22
 license: MIT
+architectures:
+  - build-on: [amd64, i386, arm64, armhf]
+    build-for: amd64
+  - build-on: [amd64, i386, arm64, armhf]
+    build-for: i386
+  - build-on: [amd64, i386, arm64, armhf]
+    build-for: arm64
+  - build-on: [amd64, i386, arm64, armhf]
+    build-for: armhf
+
 parts:
-  gh:
-    plugin: make
+  bin:
+    plugin: dump
+    source:
+      - to i386: https://github.com/cli/cli/releases/download/v2.23.0/gh_2.23.0_linux_386.tar.gz
+      - to amd64: https://github.com/cli/cli/releases/download/v2.23.0/gh_2.23.0_linux_amd64.tar.gz
+      - to arm64: https://github.com/cli/cli/releases/download/v2.23.0/gh_2.23.0_linux_arm64.tar.gz
+      - to armhf: https://github.com/cli/cli/releases/download/v2.23.0/gh_2.23.0_linux_armv6.tar.gz
+    # endsources
+    source-type: tar
+    stage:
+      - bin/gh
+      - LICENSE
+  completion:
+    plugin: dump
     source: .
-    build-snaps:
-    - go
-    - snapd
-    build-packages:
-    - git
-    - gcc
-    stage-packages:
-    - git
-    - nano
-    - ssh
-    override-pull: |
-      snapcraftctl pull
-      snapcraftctl set-version `(git describe --tags | sed 's/^v//') 2>/dev/null || git rev-parse --short HEAD`
-    override-build: |
-      LDFLAGS='' make -j2
-      cp bin/gh $SNAPCRAFT_PART_INSTALL/
-      bin/gh completion -s bash > $SNAPCRAFT_PART_INSTALL/completion.sh
+    source-type: local
+    stage:
+      - completion.sh
 apps:
   gh:
-    command: gh
-    plugs:
-    - home
-    - network
-    - network-bind
-    - desktop
-    - ssh-keys
+    command: bin/gh
     completer: completion.sh
-    environment:
-      GIT_EDITOR: nano

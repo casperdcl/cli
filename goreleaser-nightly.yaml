@@ -1,0 +1,73 @@
+project_name: gh
+
+release:
+  prerelease: true
+  name_template: 'GitHub CLI nightly {{.Version}}'
+  mode: replace
+  extra_files:
+    - glob: dist/*.snap
+  header: |
+    ## Nightly build of the unofficial snap of GitHub CLI.
+  github:
+    owner: lengau
+    name: gh-snap
+
+before:
+  hooks:
+    - go mod tidy
+    - snapcrafters/tools/generate-bash-completion.sh
+
+builds:
+  - binary: gh
+    main: ./cmd/gh
+    ldflags:
+      # - -s -w -X main.version={{.Version}} -X main.commit={{.Commit}} -X main.date={{.Date}} -X main.builtBy=goreleaser`.
+      - -s -w -X github.com/cli/cli/v2/internal/build.Version={{.Version}}
+      - -X github.com/cli/cli/v2/internal/build.Date={{ .CommitDate }}
+      - -X main.updaterEnabled=cli/cli
+      - -X main.version={{.Version}}
+      - -X main.commit={{.Commit}} -X main.date={{ .CommitDate }} -X main.builtBy=goreleaser
+    goos: [linux]
+    goarch: ['386', arm, amd64, arm64, s390x, ppc64le]
+    env:
+      - CGO_ENABLED=0
+
+# We don't need an archive for the snap...
+archives:
+  - id: tarballs
+    rlcp: true
+    files:
+    - LICENSE
+    name_template: '{{ .ProjectName }}_{{.Version}}_{{ .Os }}_{{ .Arch }}'
+
+snapcrafts:
+  - id: snaps
+    name_template: '{{ .ProjectName }}_{{.Version}}_{{ .Os }}_{{ .Arch }}'
+    publish: false
+    channel_templates:
+      - edge
+    summary: Unofficial Snap package for GitHub-CLI
+    description: |
+        **`gh` - The GitHub CLI tool**
+        `gh` is GitHub on the command line, and it's now available in beta. It brings pull requests, issues, and other GitHub concepts to
+        the terminal next to where you are already working with `git` and your code.
+        _Usage_
+        - `gh pr [status, list, view, checkout, create]`
+        - `gh issue [status, list, view, create]`
+        - `gh help`
+    grade: devel
+    confinement: classic
+    license: MIT
+    base: bare  # This is a statically-linked binary - all dependencies exist outside of the snap.
+    apps:
+      gh:
+        command: gh
+        completer: gh.gh-completion.bash
+
+checksum:
+  name_template: checksums.txt
+  ids:
+    - tarballs
+    - snaps
+  extra_files:
+    - glob: dist/*.snap

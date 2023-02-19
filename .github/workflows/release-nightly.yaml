@@ -1,0 +1,68 @@
+name: Release nightly snap of upstream project
+
+on:
+  workflow_dispatch:  # Allow manual run
+  schedule:
+    - cron: "0 7 * * *"  # Every day at 07:00 UTC
+
+permissions:
+  contents: write
+  packages: write
+  issues: write
+
+jobs:
+  Release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install Snapcraft in background
+        run: sudo snap install --no-wait --classic snapcraft
+      - name: Checkout cli repo
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+          repository: cli/cli
+      - name: Fetch cli tags and set full release name
+        run: |
+          git fetch --force --tags
+          echo "GORELEASER_CURRENT_TAG=$(git describe --tags)" >> $GITHUB_ENV
+      - name: Check for existing release
+        run: |  # https://github.com/actions/runner/issues/662
+          if ! gh api repos/$GITHUB_REPOSITORY/releases/tags/$(git describe --tags) > /dev/null; then
+            echo RELEASE=true >> $GITHUB_ENV
+            echo No release found at $(git describe --tags). Continuing release.
+          else
+            echo Existing release found. Cancelling
+          fi
+        env:
+          GH_TOKEN: ${{ github.token }}
+      - name: Checkout gh-snap repo
+        if: ${{ env.RELEASE }}  # https://github.com/actions/runner/issues/662
+        uses: actions/checkout@v3
+        with:
+          path: snapcrafters
+      - uses: actions/setup-go@v3
+        if: ${{ env.RELEASE }}
+        with:
+          go-version: '>=1.19.5'
+          cache: true
+      - name: Ensure Snapcraft install is completed
+        if: ${{ env.RELEASE }}
+        run: snap watch --last=install
+      - name: Work around pyxdg race condition
+        if: ${{ env.RELEASE }}
+        # Relevant bugs and PR:
+        # https://gitlab.freedesktop.org/xdg/pyxdg/-/merge_requests/14
+        # https://bugs.launchpad.net/snapcraft/+bug/1889741
+        # https://github.com/goreleaser/goreleaser/issues/1715
+        run: | 
+          mkdir -p $HOME/.cache/snapcraft/download
+          mkdir -p $HOME/.cache/snapcraft/stage-packages
+      - uses: goreleaser/goreleaser-action@v4
+        if: ${{ env.RELEASE }}
+        with:
+          distribution: goreleaser
+          version: latest
+          args: release --skip-announce --skip-validate --rm-dist --config snapcrafters/goreleaser-nightly.yaml
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GORELEASER_CURRENT_TAG: ${{ env.GORELEASER_CURRENT_TAG }}

@@ -1,126 +1,18 @@
-# GitHub CLI
+**This is an unofficial snap package for [GitHub CLI](https://github.com/cli/cli).**
 
-`gh` is GitHub on the command line. It brings pull requests, issues, and other GitHub concepts to the terminal next to where you are already working with `git` and your code.
+[![Snap upstream releases](https://github.com/lengau/gh-snap/actions/workflows/upstream-release.yaml/badge.svg)](https://github.com/lengau/gh-snap/actions/workflows/upstream-release.yaml)
+[![Nightly Release](https://github.com/lengau/gh-snap/actions/workflows/release-nightly.yml/badge.svg)](https://github.com/lengau/gh-snap/actions/workflows/release-nightly.yml)
 
-![screenshot of gh pr status](https://user-images.githubusercontent.com/98482/84171218-327e7a80-aa40-11ea-8cd1-5177fc2d0e72.png)
+## Install
 
-GitHub CLI is available for repositories hosted on GitHub.com and GitHub Enterprise Server 2.20+, and to install on macOS, Windows, and Linux.
+This snap is not yet available on the snap store. Right now, the steps to install are:
 
-## Documentation
+1. Download either the [latest stable release](https://github.com/lengau/gh-snap/releases/latest) or [any other release](https://github.com/lengau/gh-snap/releases) for your platform.
+2. Install with `sudo snap install --classic --dangerous [snap_file].snap`
 
-For [installation options see below](#installation), for usage instructions [see the manual][manual].
+The [`--classic` flag](https://snapcraft.io/docs/snap-confinement) means we have classic confinement. This allows the application full access to your system, as is in line with many other development tools.
+The [`--dangerous` flag](https://snapcraft.io/docs/install-modes#heading--dangerous) allows the unsigned snap file to be installed. 
 
-## Contributing
+Please note that you will have to manually install any updates to this snap until it is accepted into the Snap store. It is recommended that you watch this repository's releases until such time as the snap is approved in the snap store, after which you will need to remove the application and install it from the store.
 
-If anything feels off, or if you feel that some functionality is missing, please check out the [contributing page][contributing]. There you will find instructions for sharing your feedback, building the tool locally, and submitting pull requests to the project.
-
-<!-- this anchor is linked to from elsewhere, so avoid renaming it -->
-## Installation
-
-### macOS
-
-`gh` is available via [Homebrew][], [MacPorts][], [Conda][], [Spack][], and as a downloadable binary from the [releases page][].
-
-#### Homebrew
-
-| Install:          | Upgrade:          |
-| ----------------- | ----------------- |
-| `brew install gh` | `brew upgrade gh` |
-
-#### MacPorts
-
-| Install:               | Upgrade:                                       |
-| ---------------------- | ---------------------------------------------- |
-| `sudo port install gh` | `sudo port selfupdate && sudo port upgrade gh` |
-
-#### Conda
-
-| Install:                                 | Upgrade:                                |
-|------------------------------------------|-----------------------------------------|
-| `conda install gh --channel conda-forge` | `conda update gh --channel conda-forge` |
-
-Additional Conda installation options available on the [gh-feedstock page](https://github.com/conda-forge/gh-feedstock#installing-gh).
-
-#### Spack
-
-| Install:           | Upgrade:                                 |
-| ------------------ | ---------------------------------------- |
-| `spack install gh` | `spack uninstall gh && spack install gh` |
-
-### Linux & BSD
-
-`gh` is available via:
-- [our Debian and RPM repositories](./docs/install_linux.md);
-- community-maintained repositories in various Linux distros;
-- OS-agnostic package managers such as [Homebrew](#homebrew), [Conda](#conda), and [Spack](#spack); and
-- our [releases page][] as precompiled binaries.
-
-For more information, see [Linux & BSD installation](./docs/install_linux.md).
-
-### Windows
-
-`gh` is available via [WinGet][], [scoop][], [Chocolatey][], [Conda](#conda), and as downloadable MSI.
-
-#### WinGet
-
-| Install:            | Upgrade:            |
-| ------------------- | --------------------|
-| `winget install --id GitHub.cli` | `winget upgrade --id GitHub.cli` |
-
-#### scoop
-
-| Install:           | Upgrade:           |
-| ------------------ | ------------------ |
-| `scoop install gh` | `scoop update gh`  |
-
-#### Chocolatey
-
-| Install:           | Upgrade:           |
-| ------------------ | ------------------ |
-| `choco install gh` | `choco upgrade gh` |
-
-#### Signed MSI
-
-MSI installers are available for download on the [releases page][].
-
-### Snapcraft
-
-Install:
-
-1. `sudo snap install gh`
-2. `sudo snap connect gh:ssh-keys` grant ssh access
-
-Updates are automatically checked for (and if available, downloaded) every 6 hours.
-
-### GitHub Actions
-
-GitHub CLI comes pre-installed in all [GitHub-Hosted Runners](https://docs.github.com/en/actions/using-github-hosted-runners/about-github-hosted-runners).
-
-### Other platforms
-
-Download packaged binaries from the [releases page][].
-
-### Build from source
-
-See here on how to [build GitHub CLI from source][build from source].
-
-## Comparison with hub
-
-For many years, [hub][] was the unofficial GitHub CLI tool. `gh` is a new project that helps us explore
-what an official GitHub CLI tool can look like with a fundamentally different design. While both
-tools bring GitHub to the terminal, `hub` behaves as a proxy to `git`, and `gh` is a standalone
-tool. Check out our [more detailed explanation][gh-vs-hub] to learn more.
-
-[manual]: https://cli.github.com/manual/
-[Homebrew]: https://brew.sh
-[MacPorts]: https://www.macports.org
-[winget]: https://github.com/microsoft/winget-cli
-[scoop]: https://scoop.sh
-[Chocolatey]: https://chocolatey.org
-[Conda]: https://docs.conda.io/en/latest/
-[Spack]: https://spack.io
-[releases page]: https://github.com/cli/cli/releases/latest
-[hub]: https://github.com/github/hub
-[contributing]: ./.github/CONTRIBUTING.md
-[gh-vs-hub]: ./docs/gh-vs-hub.md
-[build from source]: ./docs/source.md
+([Don't have snapd installed?](https://snapcraft.io/docs/core/install))
