@@ -1,4 +1,4 @@
-name: Release nightly snap of upstream project
+name: Daily snap of upstream project
 
 on:
   workflow_dispatch:  # Allow manual run
