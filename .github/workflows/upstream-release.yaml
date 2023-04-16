@@ -3,7 +3,7 @@ name: Snap upstream releases
 on:
   workflow_dispatch:  # Allow manual run
   schedule:
-    - cron: "0 6 * * *"  # Every day at 06:00 UTC
+    - cron: "0 */6 * * *"  # Every 6 hr
 
 concurrency: ${{ github.workflow }}
 
