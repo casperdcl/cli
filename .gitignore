@@ -24,3 +24,6 @@ vendor/
 
 # snap
 /gh_*.snap
+
+# Ignore bash completion file
+/completion.sh
