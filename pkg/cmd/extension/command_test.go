@@ -323,7 +323,7 @@ func TestNewCmdExtension(t *testing.T) {
 				}
 			},
 			isTTY:      true,
-			wantStdout: "✓ Successfully upgraded extension hello\n",
+			wantStdout: "✓ Successfully upgraded extension\n",
 		},
 		{
 			name: "upgrade an extension dry run",
@@ -343,7 +343,7 @@ func TestNewCmdExtension(t *testing.T) {
 				}
 			},
 			isTTY:      true,
-			wantStdout: "✓ Would have upgraded extension hello\n",
+			wantStdout: "✓ Would have upgraded extension\n",
 		},
 		{
 			name: "upgrade an extension notty",
@@ -365,7 +365,9 @@ func TestNewCmdExtension(t *testing.T) {
 			args: []string{"upgrade", "hello"},
 			managerStubs: func(em *extensions.ExtensionManagerMock) func(*testing.T) {
 				em.UpgradeFunc = func(name string, force bool) error {
-					return upToDateError
+					// An already up to date extension returns the same response
+					// as an one that has been upgraded.
+					return nil
 				}
 				return func(t *testing.T) {
 					calls := em.UpgradeCalls()
@@ -374,8 +376,7 @@ func TestNewCmdExtension(t *testing.T) {
 				}
 			},
 			isTTY:      true,
-			wantStdout: "✓ Extension already up to date\n",
-			wantStderr: "",
+			wantStdout: "✓ Successfully upgraded extension\n",
 		},
 		{
 			name: "upgrade extension error",
@@ -410,7 +411,7 @@ func TestNewCmdExtension(t *testing.T) {
 				}
 			},
 			isTTY:      true,
-			wantStdout: "✓ Successfully upgraded extension hello\n",
+			wantStdout: "✓ Successfully upgraded extension\n",
 		},
 		{
 			name: "upgrade an extension full name",
@@ -426,7 +427,7 @@ func TestNewCmdExtension(t *testing.T) {
 				}
 			},
 			isTTY:      true,
-			wantStdout: "✓ Successfully upgraded extension hello\n",
+			wantStdout: "✓ Successfully upgraded extension\n",
 		},
 		{
 			name: "upgrade all",
@@ -604,13 +605,14 @@ func TestNewCmdExtension(t *testing.T) {
 			wantStdout: heredoc.Doc(`
 				✓ Created directory gh-test
 				✓ Initialized git repository
+				✓ Made initial commit
 				✓ Set up extension scaffolding
 
 				gh-test is ready for development!
 
 				Next Steps
 				- run 'cd gh-test; gh extension install .; gh test' to see your new extension in action
-				- commit and use 'gh repo create' to share your extension with others
+				- run 'gh repo create' to share your extension with others
 
 				For more information on writing extensions:
 				https://docs.github.com/github-cli/github-cli/creating-github-cli-extensions
@@ -633,6 +635,7 @@ func TestNewCmdExtension(t *testing.T) {
 			wantStdout: heredoc.Doc(`
 				✓ Created directory gh-test
 				✓ Initialized git repository
+				✓ Made initial commit
 				✓ Set up extension scaffolding
 				✓ Downloaded Go dependencies
 				✓ Built gh-test binary
@@ -641,8 +644,8 @@ func TestNewCmdExtension(t *testing.T) {
 
 				Next Steps
 				- run 'cd gh-test; gh extension install .; gh test' to see your new extension in action
-				- use 'go build && gh test' to see changes in your code as you develop
-				- commit and use 'gh repo create' to share your extension with others
+				- run 'go build && gh test' to see changes in your code as you develop
+				- run 'gh repo create' to share your extension with others
 
 				For more information on writing extensions:
 				https://docs.github.com/github-cli/github-cli/creating-github-cli-extensions
@@ -665,6 +668,7 @@ func TestNewCmdExtension(t *testing.T) {
 			wantStdout: heredoc.Doc(`
 				✓ Created directory gh-test
 				✓ Initialized git repository
+				✓ Made initial commit
 				✓ Set up extension scaffolding
 
 				gh-test is ready for development!
@@ -673,7 +677,7 @@ func TestNewCmdExtension(t *testing.T) {
 				- run 'cd gh-test; gh extension install .' to install your extension locally
 				- fill in script/build.sh with your compilation script for automated builds
 				- compile a gh-test binary locally and run 'gh test' to see changes
-				- commit and use 'gh repo create' to share your extension with others
+				- run 'gh repo create' to share your extension with others
 
 				For more information on writing extensions:
 				https://docs.github.com/github-cli/github-cli/creating-github-cli-extensions
@@ -696,13 +700,44 @@ func TestNewCmdExtension(t *testing.T) {
 			wantStdout: heredoc.Doc(`
 				✓ Created directory gh-test
 				✓ Initialized git repository
+				✓ Made initial commit
 				✓ Set up extension scaffolding
 
 				gh-test is ready for development!
 
 				Next Steps
 				- run 'cd gh-test; gh extension install .; gh test' to see your new extension in action
-				- commit and use 'gh repo create' to share your extension with others
+				- run 'gh repo create' to share your extension with others
+
+				For more information on writing extensions:
+				https://docs.github.com/github-cli/github-cli/creating-github-cli-extensions
+			`),
+		},
+		{
+			name: "create extension tty with argument commit fails",
+			args: []string{"create", "test"},
+			managerStubs: func(em *extensions.ExtensionManagerMock) func(*testing.T) {
+				em.CreateFunc = func(name string, tmplType extensions.ExtTemplateType) error {
+					return ErrInitialCommitFailed
+				}
+				return func(t *testing.T) {
+					calls := em.CreateCalls()
+					assert.Equal(t, 1, len(calls))
+					assert.Equal(t, "gh-test", calls[0].Name)
+				}
+			},
+			isTTY: true,
+			wantStdout: heredoc.Doc(`
+				✓ Created directory gh-test
+				✓ Initialized git repository
+				X Made initial commit
+				✓ Set up extension scaffolding
+
+				gh-test is ready for development!
+
+				Next Steps
+				- run 'cd gh-test; gh extension install .; gh test' to see your new extension in action
+				- run 'gh repo create' to share your extension with others
 
 				For more information on writing extensions:
 				https://docs.github.com/github-cli/github-cli/creating-github-cli-extensions
@@ -761,6 +796,55 @@ func TestNewCmdExtension(t *testing.T) {
 			args:    []string{"browse"},
 			wantErr: true,
 			errMsg:  "this command runs an interactive UI and needs to be run in a terminal",
+		},
+		{
+			name: "force install when absent",
+			args: []string{"install", "owner/gh-hello", "--force"},
+			managerStubs: func(em *extensions.ExtensionManagerMock) func(*testing.T) {
+				em.ListFunc = func() []extensions.Extension {
+					return []extensions.Extension{}
+				}
+				em.InstallFunc = func(_ ghrepo.Interface, _ string) error {
+					return nil
+				}
+				return func(t *testing.T) {
+					listCalls := em.ListCalls()
+					assert.Equal(t, 1, len(listCalls))
+					installCalls := em.InstallCalls()
+					assert.Equal(t, 1, len(installCalls))
+					assert.Equal(t, "gh-hello", installCalls[0].InterfaceMoqParam.RepoName())
+				}
+			},
+			isTTY:      true,
+			wantStdout: "✓ Installed extension owner/gh-hello\n",
+		},
+		{
+			name: "force install when present",
+			args: []string{"install", "owner/gh-hello", "--force"},
+			managerStubs: func(em *extensions.ExtensionManagerMock) func(*testing.T) {
+				em.ListFunc = func() []extensions.Extension {
+					return []extensions.Extension{
+						&Extension{path: "owner/gh-hello"},
+					}
+				}
+				em.InstallFunc = func(_ ghrepo.Interface, _ string) error {
+					return nil
+				}
+				em.UpgradeFunc = func(name string, force bool) error {
+					return nil
+				}
+				return func(t *testing.T) {
+					listCalls := em.ListCalls()
+					assert.Equal(t, 1, len(listCalls))
+					installCalls := em.InstallCalls()
+					assert.Equal(t, 0, len(installCalls))
+					upgradeCalls := em.UpgradeCalls()
+					assert.Equal(t, 1, len(upgradeCalls))
+					assert.Equal(t, "hello", upgradeCalls[0].Name)
+				}
+			},
+			isTTY:      true,
+			wantStdout: "✓ Successfully upgraded extension\n",
 		},
 	}
 
@@ -904,7 +988,7 @@ func Test_checkValidExtension(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := checkValidExtension(tt.args.rootCmd, tt.args.manager, tt.args.extName)
+			_, err := checkValidExtension(tt.args.rootCmd, tt.args.manager, tt.args.extName)
 			if tt.wantError == "" {
 				assert.NoError(t, err)
 			} else {

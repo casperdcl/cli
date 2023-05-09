@@ -27,6 +27,9 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// ErrInitialCommitFailed indicates the initial commit when making a new extension failed.
+var ErrInitialCommitFailed = errors.New("initial commit failed")
+
 type Manager struct {
 	dataDir    func() string
 	lookPath   func(string) (string, error)
@@ -347,7 +350,7 @@ func (m *Manager) Install(repo ghrepo.Interface, target string) error {
 		return errors.New("extension is not installable: missing executable")
 	}
 
-	return m.installGit(repo, target, m.io.Out, m.io.ErrOut)
+	return m.installGit(repo, target)
 }
 
 func (m *Manager) installBin(repo ghrepo.Interface, target string) error {
@@ -433,24 +436,33 @@ func (m *Manager) installBin(repo ghrepo.Interface, target string) error {
 	}
 
 	if !m.dryRunMode {
-		manifestPath := filepath.Join(targetDir, manifestName)
-
-		f, err := os.OpenFile(manifestPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
-		if err != nil {
-			return fmt.Errorf("failed to open manifest for writing: %w", err)
-		}
-		defer f.Close()
-
-		_, err = f.Write(bs)
-		if err != nil {
-			return fmt.Errorf("failed write manifest file: %w", err)
+		if err := writeManifest(targetDir, manifestName, bs); err != nil {
+			return err
 		}
 	}
 
 	return nil
 }
 
-func (m *Manager) installGit(repo ghrepo.Interface, target string, stdout, stderr io.Writer) error {
+func writeManifest(dir, name string, data []byte) (writeErr error) {
+	path := filepath.Join(dir, name)
+	var f *os.File
+	if f, writeErr = os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600); writeErr != nil {
+		writeErr = fmt.Errorf("failed to open manifest for writing: %w", writeErr)
+		return
+	}
+	defer func() {
+		if err := f.Close(); writeErr == nil && err != nil {
+			writeErr = err
+		}
+	}()
+	if _, writeErr = f.Write(data); writeErr != nil {
+		writeErr = fmt.Errorf("failed write manifest file: %w", writeErr)
+	}
+	return
+}
+
+func (m *Manager) installGit(repo ghrepo.Interface, target string) error {
 	protocol, _ := m.config.GetOrDefault(repo.RepoHost(), "git_protocol")
 	cloneURL := ghrepo.FormatRemoteURL(repo, protocol)
 
@@ -516,7 +528,7 @@ func (m *Manager) Upgrade(name string, force bool) error {
 		if err != nil {
 			return err
 		}
-		return m.upgradeExtension(f, force)
+		return m.upgradeExtensions([]Extension{f}, force)
 	}
 	return fmt.Errorf("no extension matched %q", name)
 }
@@ -654,8 +666,15 @@ func (m *Manager) Create(name string, tmplType extensions.ExtTemplateType) error
 	}
 
 	scopedClient := m.gitClient.ForRepo(name)
-	_, err := scopedClient.CommandOutput([]string{"add", name, "--chmod=+x"})
-	return err
+	if _, err := scopedClient.CommandOutput([]string{"add", name, "--chmod=+x"}); err != nil {
+		return err
+	}
+
+	if _, err := scopedClient.CommandOutput([]string{"commit", "-m", "initial commit"}); err != nil {
+		return ErrInitialCommitFailed
+	}
+
+	return nil
 }
 
 func (m *Manager) otherBinScaffolding(name string) error {
@@ -672,8 +691,15 @@ func (m *Manager) otherBinScaffolding(name string) error {
 		return err
 	}
 
-	_, err := scopedClient.CommandOutput([]string{"add", "."})
-	return err
+	if _, err := scopedClient.CommandOutput([]string{"add", "."}); err != nil {
+		return err
+	}
+
+	if _, err := scopedClient.CommandOutput([]string{"commit", "-m", "initial commit"}); err != nil {
+		return ErrInitialCommitFailed
+	}
+
+	return nil
 }
 
 func (m *Manager) goBinScaffolding(name string) error {
@@ -691,7 +717,7 @@ func (m *Manager) goBinScaffolding(name string) error {
 		return err
 	}
 
-	host, _ := m.config.DefaultHost()
+	host, _ := m.config.Authentication().DefaultHost()
 
 	currentUser, err := api.CurrentLoginName(api.NewClientFromHTTP(m.client), host)
 	if err != nil {
@@ -718,8 +744,15 @@ func (m *Manager) goBinScaffolding(name string) error {
 	}
 
 	scopedClient := m.gitClient.ForRepo(name)
-	_, err = scopedClient.CommandOutput([]string{"add", "."})
-	return err
+	if _, err := scopedClient.CommandOutput([]string{"add", "."}); err != nil {
+		return err
+	}
+
+	if _, err := scopedClient.CommandOutput([]string{"commit", "-m", "initial commit"}); err != nil {
+		return ErrInitialCommitFailed
+	}
+
+	return nil
 }
 
 func isSymlink(m os.FileMode) bool {

@@ -9,6 +9,7 @@ before:
   hooks:
     - go mod tidy
     - make manpages GH_VERSION={{.Version}}
+    - make completions
 
 builds:
   - <<: &build_defaults
@@ -16,10 +17,9 @@ builds:
       main: ./cmd/gh
       ldflags:
         - -s -w -X github.com/cli/cli/v2/internal/build.Version={{.Version}} -X github.com/cli/cli/v2/internal/build.Date={{time "2006-01-02"}}
-        - -X main.updaterEnabled=cli/cli
     id: macos
     goos: [darwin]
-    goarch: [amd64]
+    goarch: [amd64, arm64]
 
   - <<: *build_defaults
     id: linux
@@ -34,7 +34,8 @@ builds:
     goarch: [386, amd64, arm64]
     hooks:
       post:
-        - ./script/sign-windows-executable.sh '{{ .Path }}'
+        - cmd: ./script/sign-windows-executable.sh '{{ .Path }}'
+          output: false
 
 archives:
   - id: nix
@@ -70,3 +71,9 @@ nfpms:
     contents:
       - src: "./share/man/man1/gh*.1"
         dst: "/usr/share/man/man1"
+      - src: "./share/bash-completion/completions/gh"
+        dst: "/usr/share/bash-completion/completions/gh"
+      - src: "./share/fish/vendor_completions.d/gh.fish"
+        dst: "/usr/share/fish/vendor_completions.d/gh.fish"
+      - src: "./share/zsh/site-functions/_gh"
+        dst: "/usr/share/zsh/site-functions/_gh"

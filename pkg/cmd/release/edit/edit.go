@@ -1,6 +1,7 @@
 package edit
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 
@@ -81,6 +82,8 @@ func NewCmdEdit(f *cmdutil.Factory, runF func(*EditOptions) error) *cobra.Comman
 	cmd.Flags().StringVar(&opts.TagName, "tag", "", "The name of the tag")
 	cmd.Flags().StringVarP(&notesFile, "notes-file", "F", "", "Read release notes from `file` (use \"-\" to read from standard input)")
 
+	_ = cmdutil.RegisterBranchCompletionFlags(f.GitClient, cmd, "target")
+
 	return cmd
 }
 
@@ -95,7 +98,7 @@ func editRun(tag string, opts *EditOptions) error {
 		return err
 	}
 
-	release, err := shared.FetchRelease(httpClient, baseRepo, tag)
+	release, err := shared.FetchRelease(context.Background(), httpClient, baseRepo, tag)
 	if err != nil {
 		return err
 	}

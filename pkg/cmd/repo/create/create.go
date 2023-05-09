@@ -1,15 +1,20 @@
 package create
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strings"
+	"time"
 
 	"github.com/MakeNowJust/heredoc"
+	"github.com/cenkalti/backoff/v4"
 	"github.com/cli/cli/v2/api"
 	"github.com/cli/cli/v2/git"
 	"github.com/cli/cli/v2/internal/config"
@@ -19,6 +24,10 @@ import (
 	"github.com/cli/cli/v2/pkg/iostreams"
 	"github.com/spf13/cobra"
 )
+
+type errWithExitCode interface {
+	ExitCode() int
+}
 
 type iprompter interface {
 	Input(string, string) (string, error)
@@ -32,6 +41,7 @@ type CreateOptions struct {
 	Config     func() (config.Config, error)
 	IO         *iostreams.IOStreams
 	Prompter   iprompter
+	BackOff    backoff.BackOff
 
 	Name               string
 	Description        string
@@ -205,7 +215,7 @@ func NewCmdCreate(f *cmdutil.Factory, runF func(*CreateOptions) error) *cobra.Co
 		if err != nil {
 			return nil, cobra.ShellCompDirectiveError
 		}
-		hostname, _ := cfg.DefaultHost()
+		hostname, _ := cfg.Authentication().DefaultHost()
 		results, err := listGitIgnoreTemplates(httpClient, hostname)
 		if err != nil {
 			return nil, cobra.ShellCompDirectiveError
@@ -222,7 +232,7 @@ func NewCmdCreate(f *cmdutil.Factory, runF func(*CreateOptions) error) *cobra.Co
 		if err != nil {
 			return nil, cobra.ShellCompDirectiveError
 		}
-		hostname, _ := cfg.DefaultHost()
+		hostname, _ := cfg.Authentication().DefaultHost()
 		licenses, err := listLicenseTemplates(httpClient, hostname)
 		if err != nil {
 			return nil, cobra.ShellCompDirectiveError
@@ -270,10 +280,10 @@ func createFromScratch(opts *CreateOptions) error {
 		return err
 	}
 
-	host, _ := cfg.DefaultHost()
+	host, _ := cfg.Authentication().DefaultHost()
 
 	if opts.Interactive {
-		opts.Name, opts.Description, opts.Visibility, err = interactiveRepoInfo(opts.Prompter, "")
+		opts.Name, opts.Description, opts.Visibility, err = interactiveRepoInfo(httpClient, host, opts.Prompter, "")
 		if err != nil {
 			return err
 		}
@@ -291,8 +301,8 @@ func createFromScratch(opts *CreateOptions) error {
 		}
 
 		targetRepo := shared.NormalizeRepoName(opts.Name)
-		if idx := strings.IndexRune(targetRepo, '/'); idx > 0 {
-			targetRepo = targetRepo[0:idx+1] + shared.NormalizeRepoName(targetRepo[idx+1:])
+		if idx := strings.IndexRune(opts.Name, '/'); idx > 0 {
+			targetRepo = opts.Name[0:idx+1] + shared.NormalizeRepoName(opts.Name[idx+1:])
 		}
 		confirmed, err := opts.Prompter.Confirm(fmt.Sprintf(`This will create "%s" as a %s repository on GitHub. Continue?`, targetRepo, strings.ToLower(opts.Visibility)), true)
 		if err != nil {
@@ -386,17 +396,12 @@ func createFromScratch(opts *CreateOptions) error {
 
 		remoteURL := ghrepo.FormatRemoteURL(repo, protocol)
 
-		if opts.LicenseTemplate == "" && opts.GitIgnoreTemplate == "" {
+		if opts.LicenseTemplate == "" && opts.GitIgnoreTemplate == "" && opts.Template == "" {
 			// cloning empty repository or template
-			checkoutBranch := ""
-			if opts.Template != "" {
-				// use the template's default branch
-				checkoutBranch = templateRepoMainBranch
-			}
-			if err := localInit(opts.GitClient, remoteURL, repo.RepoName(), checkoutBranch); err != nil {
+			if err := localInit(opts.GitClient, remoteURL, repo.RepoName()); err != nil {
 				return err
 			}
-		} else if _, err := opts.GitClient.Clone(context.Background(), remoteURL, []string{}); err != nil {
+		} else if err := cloneWithRetry(opts, remoteURL, templateRepoMainBranch); err != nil {
 			return err
 		}
 	}
@@ -419,7 +424,7 @@ func createFromLocal(opts *CreateOptions) error {
 	if err != nil {
 		return err
 	}
-	host, _ := cfg.DefaultHost()
+	host, _ := cfg.Authentication().DefaultHost()
 
 	if opts.Interactive {
 		var err error
@@ -467,7 +472,7 @@ func createFromLocal(opts *CreateOptions) error {
 	}
 
 	if opts.Interactive {
-		opts.Name, opts.Description, opts.Visibility, err = interactiveRepoInfo(opts.Prompter, filepath.Base(absPath))
+		opts.Name, opts.Description, opts.Visibility, err = interactiveRepoInfo(httpClient, host, opts.Prompter, filepath.Base(absPath))
 		if err != nil {
 			return err
 		}
@@ -562,6 +567,33 @@ func createFromLocal(opts *CreateOptions) error {
 	return nil
 }
 
+func cloneWithRetry(opts *CreateOptions, remoteURL, branch string) error {
+	// Allow injecting alternative BackOff in tests.
+	if opts.BackOff == nil {
+		opts.BackOff = backoff.NewConstantBackOff(3 * time.Second)
+	}
+
+	var args []string
+	if branch != "" {
+		args = append(args, "--branch", branch)
+	}
+
+	ctx := context.Background()
+	return backoff.Retry(func() error {
+		stderr := &bytes.Buffer{}
+		_, err := opts.GitClient.Clone(ctx, remoteURL, args, git.WithStderr(stderr))
+
+		var execError errWithExitCode
+		if errors.As(err, &execError) && execError.ExitCode() == 128 {
+			return err
+		} else {
+			_, _ = io.Copy(opts.IO.ErrOut, stderr)
+		}
+
+		return backoff.Permanent(err)
+	}, backoff.WithContext(backoff.WithMaxRetries(opts.BackOff, 3), ctx))
+}
+
 func sourceInit(gitClient *git.Client, io *iostreams.IOStreams, remoteURL, baseRemote string) error {
 	cs := io.ColorScheme()
 	remoteAdd, err := gitClient.Command(context.Background(), "remote", "add", baseRemote, remoteURL)
@@ -619,7 +651,7 @@ func isLocalRepo(gitClient *git.Client) (bool, error) {
 }
 
 // clone the checkout branch to specified path
-func localInit(gitClient *git.Client, remoteURL, path, checkoutBranch string) error {
+func localInit(gitClient *git.Client, remoteURL, path string) error {
 	ctx := context.Background()
 	gitInit, err := gitClient.Command(ctx, "init", path)
 	if err != nil {
@@ -643,17 +675,7 @@ func localInit(gitClient *git.Client, remoteURL, path, checkoutBranch string) er
 		return err
 	}
 
-	if checkoutBranch == "" {
-		return nil
-	}
-
-	refspec := fmt.Sprintf("+refs/heads/%[1]s:refs/remotes/origin/%[1]s", checkoutBranch)
-	err = gc.Fetch(ctx, "origin", refspec)
-	if err != nil {
-		return err
-	}
-
-	return gc.CheckoutBranch(ctx, checkoutBranch)
+	return nil
 }
 
 func interactiveGitIgnore(client *http.Client, hostname string, prompter iprompter) (string, error) {
@@ -699,13 +721,16 @@ func interactiveLicense(client *http.Client, hostname string, prompter iprompter
 }
 
 // name, description, and visibility
-func interactiveRepoInfo(prompter iprompter, defaultName string) (string, string, string, error) {
-	name, err := prompter.Input("Repository name", defaultName)
+func interactiveRepoInfo(client *http.Client, hostname string, prompter iprompter, defaultName string) (string, string, string, error) {
+	name, owner, err := interactiveRepoNameAndOwner(client, hostname, prompter, defaultName)
 	if err != nil {
 		return "", "", "", err
 	}
+	if owner != "" {
+		name = fmt.Sprintf("%s/%s", owner, name)
+	}
 
-	description, err := prompter.Input("Description", defaultName)
+	description, err := prompter.Input("Description", "")
 	if err != nil {
 		return "", "", "", err
 	}
@@ -717,6 +742,57 @@ func interactiveRepoInfo(prompter iprompter, defaultName string) (string, string
 	}
 
 	return name, description, strings.ToUpper(visibilityOptions[selected]), nil
+}
+
+func interactiveRepoNameAndOwner(client *http.Client, hostname string, prompter iprompter, defaultName string) (string, string, error) {
+	name, err := prompter.Input("Repository name", defaultName)
+	if err != nil {
+		return "", "", err
+	}
+
+	name, owner, err := splitNameAndOwner(name)
+	if err != nil {
+		return "", "", err
+	}
+	if owner != "" {
+		// User supplied an explicit owner prefix.
+		return name, owner, nil
+	}
+
+	username, orgs, err := userAndOrgs(client, hostname)
+	if err != nil {
+		return "", "", err
+	}
+	if len(orgs) == 0 {
+		// User doesn't belong to any orgs.
+		// Leave the owner blank to indicate a personal repo.
+		return name, "", nil
+	}
+
+	owners := append(orgs, username)
+	sort.Strings(owners)
+	selected, err := prompter.Select("Repository owner", username, owners)
+	if err != nil {
+		return "", "", err
+	}
+
+	owner = owners[selected]
+	if owner == username {
+		// Leave the owner blank to indicate a personal repo.
+		return name, "", nil
+	}
+	return name, owner, nil
+}
+
+func splitNameAndOwner(name string) (string, string, error) {
+	if !strings.Contains(name, "/") {
+		return name, "", nil
+	}
+	repo, err := ghrepo.FromFullName(name)
+	if err != nil {
+		return "", "", fmt.Errorf("argument error: %w", err)
+	}
+	return repo.RepoName(), repo.RepoOwner(), nil
 }
 
 func cloneGitClient(c *git.Client) *git.Client {

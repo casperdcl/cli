@@ -3,6 +3,7 @@ package list
 import (
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/cli/cli/v2/internal/ghrepo"
 	"github.com/cli/cli/v2/internal/tableprinter"
@@ -17,8 +18,9 @@ type ListOptions struct {
 	IO         *iostreams.IOStreams
 	BaseRepo   func() (ghrepo.Interface, error)
 
-	LimitResults  int
-	ExcludeDrafts bool
+	LimitResults       int
+	ExcludeDrafts      bool
+	ExcludePreReleases bool
 }
 
 func NewCmdList(f *cmdutil.Factory, runF func(*ListOptions) error) *cobra.Command {
@@ -45,6 +47,7 @@ func NewCmdList(f *cmdutil.Factory, runF func(*ListOptions) error) *cobra.Comman
 
 	cmd.Flags().IntVarP(&opts.LimitResults, "limit", "L", 30, "Maximum number of items to fetch")
 	cmd.Flags().BoolVar(&opts.ExcludeDrafts, "exclude-drafts", false, "Exclude draft releases")
+	cmd.Flags().BoolVar(&opts.ExcludePreReleases, "exclude-pre-releases", false, "Exclude pre-releases")
 
 	return cmd
 }
@@ -60,7 +63,7 @@ func listRun(opts *ListOptions) error {
 		return err
 	}
 
-	releases, err := fetchReleases(httpClient, baseRepo, opts.LimitResults, opts.ExcludeDrafts)
+	releases, err := fetchReleases(httpClient, baseRepo, opts.LimitResults, opts.ExcludeDrafts, opts.ExcludePreReleases)
 	if err != nil {
 		return err
 	}
@@ -105,7 +108,7 @@ func listRun(opts *ListOptions) error {
 		if rel.PublishedAt.IsZero() {
 			pubDate = rel.CreatedAt
 		}
-		table.AddTimeField(pubDate, iofmt.Gray)
+		table.AddTimeField(time.Now(), pubDate, iofmt.Gray)
 		table.EndRow()
 	}
 	err = table.Render()

@@ -713,7 +713,7 @@ func TestManager_UpgradeExtension_BinaryExtension_Pinned(t *testing.T) {
 	assert.Equal(t, err, pinnedExtensionUpgradeError)
 }
 
-func TestManager_UpgradeExtenion_GitExtension_Pinned(t *testing.T) {
+func TestManager_UpgradeExtension_GitExtension_Pinned(t *testing.T) {
 	tempDir := t.TempDir()
 	extDir := filepath.Join(tempDir, "extensions", "gh-remote")
 	assert.NoError(t, stubPinnedExtension(filepath.Join(extDir, "gh-remote"), "abcd1234"))
@@ -1036,6 +1036,7 @@ func TestManager_Create(t *testing.T) {
 	gc.On("ForRepo", "gh-test").Return(gcOne).Once()
 	gc.On("CommandOutput", []string{"init", "--quiet", "gh-test"}).Return("", nil).Once()
 	gcOne.On("CommandOutput", []string{"add", "gh-test", "--chmod=+x"}).Return("", nil).Once()
+	gcOne.On("CommandOutput", []string{"commit", "-m", "initial commit"}).Return("", nil).Once()
 
 	m := newTestManager(".", nil, gc, ios)
 
@@ -1068,6 +1069,7 @@ func TestManager_Create_go_binary(t *testing.T) {
 	gc.On("ForRepo", "gh-test").Return(gcOne).Once()
 	gc.On("CommandOutput", []string{"init", "--quiet", "gh-test"}).Return("", nil).Once()
 	gcOne.On("CommandOutput", []string{"add", "."}).Return("", nil).Once()
+	gcOne.On("CommandOutput", []string{"commit", "-m", "initial commit"}).Return("", nil).Once()
 
 	m := newTestManager(".", &http.Client{Transport: &reg}, gc, ios)
 
@@ -1111,6 +1113,7 @@ func TestManager_Create_other_binary(t *testing.T) {
 	gc.On("CommandOutput", []string{"init", "--quiet", "gh-test"}).Return("", nil).Once()
 	gcOne.On("CommandOutput", []string{"add", filepath.Join("script", "build.sh"), "--chmod=+x"}).Return("", nil).Once()
 	gcOne.On("CommandOutput", []string{"add", "."}).Return("", nil).Once()
+	gcOne.On("CommandOutput", []string{"commit", "-m", "initial commit"}).Return("", nil).Once()
 
 	m := newTestManager(".", nil, gc, ios)
 

@@ -303,7 +303,7 @@ func TestClientCurrentBranch(t *testing.T) {
 			wantBranch:  "branch\u00A0with\u00A0non\u00A0breaking\u00A0space",
 		},
 		{
-			name:          "detatched head",
+			name:          "detached head",
 			cmdExitStatus: 1,
 			wantCmdArgs:   `path/to/git symbolic-ref --quiet HEAD`,
 			wantErrorMsg:  "failed to run git: not on any branch",
@@ -339,7 +339,7 @@ func TestClientShowRefs(t *testing.T) {
 		wantErrorMsg  string
 	}{
 		{
-			name:          "show refs with one vaid ref and one invalid ref",
+			name:          "show refs with one valid ref and one invalid ref",
 			cmdExitStatus: 128,
 			cmdStdout:     "9ea76237a557015e73446d33268569a114c0649c refs/heads/valid",
 			cmdStderr:     "fatal: 'refs/heads/invalid' - not a valid ref",
@@ -1089,7 +1089,7 @@ func TestClientAddRemote(t *testing.T) {
 			url:         "URL",
 			dir:         "DIRECTORY",
 			branches:    []string{},
-			wantCmdArgs: `path/to/git -C DIRECTORY -c credential.helper= -c credential.helper=!"gh" auth git-credential remote add -f test URL`,
+			wantCmdArgs: `path/to/git -C DIRECTORY remote add test URL`,
 		},
 		{
 			title:       "fetch specific branches only",
@@ -1097,7 +1097,7 @@ func TestClientAddRemote(t *testing.T) {
 			url:         "URL",
 			dir:         "DIRECTORY",
 			branches:    []string{"trunk", "dev"},
-			wantCmdArgs: `path/to/git -C DIRECTORY -c credential.helper= -c credential.helper=!"gh" auth git-credential remote add -t trunk -t dev -f test URL`,
+			wantCmdArgs: `path/to/git -C DIRECTORY remote add -t trunk -t dev test URL`,
 		},
 	}
 	for _, tt := range tests {

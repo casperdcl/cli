@@ -22,6 +22,7 @@ import (
 	gpgKeyCmd "github.com/cli/cli/v2/pkg/cmd/gpg-key"
 	issueCmd "github.com/cli/cli/v2/pkg/cmd/issue"
 	labelCmd "github.com/cli/cli/v2/pkg/cmd/label"
+	orgCmd "github.com/cli/cli/v2/pkg/cmd/org"
 	prCmd "github.com/cli/cli/v2/pkg/cmd/pr"
 	releaseCmd "github.com/cli/cli/v2/pkg/cmd/release"
 	repoCmd "github.com/cli/cli/v2/pkg/cmd/repo"
@@ -31,6 +32,7 @@ import (
 	secretCmd "github.com/cli/cli/v2/pkg/cmd/secret"
 	sshKeyCmd "github.com/cli/cli/v2/pkg/cmd/ssh-key"
 	statusCmd "github.com/cli/cli/v2/pkg/cmd/status"
+	variableCmd "github.com/cli/cli/v2/pkg/cmd/variable"
 	versionCmd "github.com/cli/cli/v2/pkg/cmd/version"
 	workflowCmd "github.com/cli/cli/v2/pkg/cmd/workflow"
 	"github.com/cli/cli/v2/pkg/cmdutil"
@@ -43,17 +45,12 @@ func NewCmdRoot(f *cmdutil.Factory, version, buildDate string) *cobra.Command {
 		Short: "GitHub CLI",
 		Long:  `Work seamlessly with GitHub from the command line.`,
 
-		SilenceErrors: true,
-		SilenceUsage:  true,
 		Example: heredoc.Doc(`
 			$ gh issue create
 			$ gh repo clone cli/cli
 			$ gh pr checkout 321
 		`),
 		Annotations: map[string]string{
-			"help:feedback": heredoc.Doc(`
-				Open an issue using 'gh issue create -R github.com/cli/cli'
-			`),
 			"versionInfo": versionCmd.Format(version, buildDate),
 		},
 	}
@@ -61,15 +58,33 @@ func NewCmdRoot(f *cmdutil.Factory, version, buildDate string) *cobra.Command {
 	// cmd.SetOut(f.IOStreams.Out)    // can't use due to https://github.com/spf13/cobra/issues/1708
 	// cmd.SetErr(f.IOStreams.ErrOut) // just let it default to os.Stderr instead
 
-	cmd.Flags().Bool("version", false, "Show gh version")
 	cmd.PersistentFlags().Bool("help", false, "Show help for command")
-	cmd.SetHelpFunc(func(c *cobra.Command, args []string) {
-		rootHelpFunc(f, c, args)
+
+	// override Cobra's default behaviors unless an opt-out has been set
+	if os.Getenv("GH_COBRA") == "" {
+		cmd.SilenceErrors = true
+		cmd.SilenceUsage = true
+
+		// this --version flag is checked in rootHelpFunc
+		cmd.Flags().Bool("version", false, "Show gh version")
+
+		cmd.SetHelpFunc(func(c *cobra.Command, args []string) {
+			rootHelpFunc(f, c, args)
+		})
+		cmd.SetUsageFunc(func(c *cobra.Command) error {
+			return rootUsageFunc(f.IOStreams.ErrOut, c)
+		})
+		cmd.SetFlagErrorFunc(rootFlagErrorFunc)
+	}
+
+	cmd.AddGroup(&cobra.Group{
+		ID:    "core",
+		Title: "Core commands",
 	})
-	cmd.SetUsageFunc(func(c *cobra.Command) error {
-		return rootUsageFunc(f.IOStreams.ErrOut, c)
+	cmd.AddGroup(&cobra.Group{
+		ID:    "actions",
+		Title: "GitHub Actions commands",
 	})
-	cmd.SetFlagErrorFunc(rootFlagErrorFunc)
 
 	// Child commands
 	cmd.AddCommand(versionCmd.NewCmdVersion(f, version, buildDate))
@@ -84,6 +99,7 @@ func NewCmdRoot(f *cmdutil.Factory, version, buildDate string) *cobra.Command {
 	cmd.AddCommand(extensionCmd.NewCmdExtension(f))
 	cmd.AddCommand(searchCmd.NewCmdSearch(f))
 	cmd.AddCommand(secretCmd.NewCmdSecret(f))
+	cmd.AddCommand(variableCmd.NewCmdVariable(f))
 	cmd.AddCommand(sshKeyCmd.NewCmdSSHKey(f))
 	cmd.AddCommand(statusCmd.NewCmdStatus(f, nil))
 	cmd.AddCommand(newCodespaceCmd(f))
@@ -100,6 +116,7 @@ func NewCmdRoot(f *cmdutil.Factory, version, buildDate string) *cobra.Command {
 
 	cmd.AddCommand(browseCmd.NewCmdBrowse(&repoResolvingCmdFactory, nil))
 	cmd.AddCommand(prCmd.NewCmdPR(&repoResolvingCmdFactory))
+	cmd.AddCommand(orgCmd.NewCmdOrg(&repoResolvingCmdFactory))
 	cmd.AddCommand(issueCmd.NewCmdIssue(&repoResolvingCmdFactory))
 	cmd.AddCommand(releaseCmd.NewCmdRelease(&repoResolvingCmdFactory))
 	cmd.AddCommand(repoCmd.NewCmdRepo(&repoResolvingCmdFactory))
@@ -131,7 +148,7 @@ func bareHTTPClient(f *cmdutil.Factory, version string) func() (*http.Client, er
 		}
 		opts := api.HTTPClientOptions{
 			AppVersion:        version,
-			Config:            cfg,
+			Config:            cfg.Authentication(),
 			Log:               f.IOStreams.ErrOut,
 			LogColorize:       f.IOStreams.ColorEnabled(),
 			SkipAcceptHeaders: true,
@@ -154,11 +171,12 @@ func newCodespaceCmd(f *cmdutil.Factory) *cobra.Command {
 			&lazyLoadedHTTPClient{factory: f},
 		),
 		f.Browser,
+		f.Remotes,
 	)
 	cmd := codespaceCmd.NewRootCmd(app)
 	cmd.Use = "codespace"
 	cmd.Aliases = []string{"cs"}
-	cmd.Annotations = map[string]string{"IsCore": "true"}
+	cmd.GroupID = "core"
 	return cmd
 }
 

@@ -2,7 +2,7 @@
 // versions:
 // - protoc-gen-go-grpc v1.2.0
 // - protoc             v3.12.4
-// source: jupyter/JupyterServerHostService.v1.proto
+// source: jupyter/jupyter_server_host_service.v1.proto
 
 package jupyter
 
@@ -101,5 +101,5 @@ var JupyterServerHost_ServiceDesc = grpc.ServiceDesc{
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
-	Metadata: "jupyter/JupyterServerHostService.v1.proto",
+	Metadata: "jupyter/jupyter_server_host_service.v1.proto",
 }

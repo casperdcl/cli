@@ -39,6 +39,8 @@ type PullRequest struct {
 	ClosedAt            *time.Time
 	MergedAt            *time.Time
 
+	AutoMergeRequest *AutoMergeRequest
+
 	MergeCommit          *Commit
 	PotentialMergeCommit *Commit
 
@@ -74,6 +76,7 @@ type PullRequest struct {
 	Assignees      Assignees
 	Labels         Labels
 	ProjectCards   ProjectCards
+	ProjectItems   ProjectItems
 	Milestone      *Milestone
 	Comments       Comments
 	ReactionGroups ReactionGroups
@@ -133,6 +136,16 @@ type CheckContext struct {
 type PRRepository struct {
 	ID   string `json:"id"`
 	Name string `json:"name"`
+}
+
+type AutoMergeRequest struct {
+	AuthorEmail    *string `json:"authorEmail"`
+	CommitBody     *string `json:"commitBody"`
+	CommitHeadline *string `json:"commitHeadline"`
+	// MERGE, REBASE, SQUASH
+	MergeMethod string    `json:"mergeMethod"`
+	EnabledAt   time.Time `json:"enabledAt"`
+	EnabledBy   Author    `json:"enabledBy"`
 }
 
 // Commit loads just the commit SHA and nothing else
@@ -373,6 +386,19 @@ func CreatePullRequest(client *Client, repo *Repository, params map[string]inter
 			"input": reviewParams,
 		}
 		err := client.GraphQL(repo.RepoHost(), reviewQuery, variables, &result)
+		if err != nil {
+			return pr, err
+		}
+	}
+
+	// projectsV2 are added in yet another mutation
+	projectV2Ids, ok := params["projectV2Ids"].([]string)
+	if ok {
+		projectItems := make(map[string]string, len(projectV2Ids))
+		for _, p := range projectV2Ids {
+			projectItems[p] = pr.ID
+		}
+		err = UpdateProjectV2Items(client, repo, projectItems, nil)
 		if err != nil {
 			return pr, err
 		}
