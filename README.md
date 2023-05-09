@@ -97,16 +97,6 @@ Install:
 
 Updates are automatically checked for (and if available, downloaded) every 6 hours.
 
-### Codespaces
-
-To add GitHub CLI to your codespace, add the following to your [devcontainer file](https://docs.github.com/en/codespaces/setting-up-your-project-for-codespaces/adding-features-to-a-devcontainer-file):
-
-```json
-"features": {
-  "ghcr.io/devcontainers/features/github-cli:1": {}
-}
-```
-
 ### GitHub Actions
 
 GitHub CLI comes pre-installed in all [GitHub-Hosted Runners](https://docs.github.com/en/actions/using-github-hosted-runners/about-github-hosted-runners).

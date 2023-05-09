@@ -15,7 +15,7 @@ jobs:
       - name: lint pr
         env:
           GH_REPO: ${{ github.repository }}
-          GH_TOKEN: ${{ secrets.AUTOMATION_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
           PRID: ${{ github.event.pull_request.node_id }}
           PRBODY: ${{ github.event.pull_request.body }}
           PRNUM: ${{ github.event.pull_request.number }}
