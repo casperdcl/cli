@@ -6,6 +6,12 @@ import (
 	"sync"
 )
 
+// Replace http.Client transport layer with registry so all requests get
+// recorded.
+func ReplaceTripper(client *http.Client, reg *Registry) {
+	client.Transport = reg
+}
+
 type Registry struct {
 	mu       sync.Mutex
 	stubs    []*Stub
@@ -21,6 +27,7 @@ func (r *Registry) Register(m Matcher, resp Responder) {
 
 type Testing interface {
 	Errorf(string, ...interface{})
+	Helper()
 }
 
 func (r *Registry) Verify(t Testing) {
@@ -31,6 +38,7 @@ func (r *Registry) Verify(t Testing) {
 		}
 	}
 	if n > 0 {
+		t.Helper()
 		// NOTE: stubs offer no useful reflection, so we can't print details
 		// about dead stubs and what they were trying to match
 		t.Errorf("%d unmatched HTTP stubs", n)

@@ -1,87 +1,212 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
 	"net"
 	"os"
-	"path"
+	"os/exec"
+	"path/filepath"
 	"strings"
+	"time"
 
-	"github.com/cli/cli/command"
-	"github.com/cli/cli/internal/config"
-	"github.com/cli/cli/pkg/cmdutil"
-	"github.com/cli/cli/update"
-	"github.com/cli/cli/utils"
+	surveyCore "github.com/AlecAivazis/survey/v2/core"
+	"github.com/AlecAivazis/survey/v2/terminal"
+	"github.com/cli/cli/v2/api"
+	"github.com/cli/cli/v2/internal/build"
+	"github.com/cli/cli/v2/internal/config"
+	"github.com/cli/cli/v2/internal/config/migration"
+	"github.com/cli/cli/v2/internal/update"
+	"github.com/cli/cli/v2/pkg/cmd/factory"
+	"github.com/cli/cli/v2/pkg/cmd/root"
+	"github.com/cli/cli/v2/pkg/cmdutil"
+	"github.com/cli/cli/v2/pkg/iostreams"
+	"github.com/cli/cli/v2/utils"
+	"github.com/cli/safeexec"
+	"github.com/mattn/go-isatty"
 	"github.com/mgutz/ansi"
 	"github.com/spf13/cobra"
 )
 
 var updaterEnabled = ""
 
+type exitCode int
+
+const (
+	exitOK      exitCode = 0
+	exitError   exitCode = 1
+	exitCancel  exitCode = 2
+	exitAuth    exitCode = 4
+	exitPending exitCode = 8
+)
+
 func main() {
-	currentVersion := command.Version
+	code := mainRun()
+	os.Exit(int(code))
+}
+
+func mainRun() exitCode {
+	buildDate := build.Date
+	buildVersion := build.Version
+	hasDebug, _ := utils.IsDebugEnabled()
+
+	cmdFactory := factory.New(buildVersion)
+	stderr := cmdFactory.IOStreams.ErrOut
+
+	ctx := context.Background()
+
+	if cfg, err := cmdFactory.Config(); err == nil {
+		var m migration.MultiAccount
+		if err := cfg.Migrate(m); err != nil {
+			fmt.Fprintf(stderr, "failed to migrate configuration: %s\n", err)
+			return exitError
+		}
+	}
+
+	updateCtx, updateCancel := context.WithCancel(ctx)
+	defer updateCancel()
 	updateMessageChan := make(chan *update.ReleaseInfo)
 	go func() {
-		rel, _ := checkForUpdate(currentVersion)
+		rel, err := checkForUpdate(updateCtx, cmdFactory, buildVersion)
+		if err != nil && hasDebug {
+			fmt.Fprintf(stderr, "warning: checking for update failed: %v", err)
+		}
 		updateMessageChan <- rel
 	}()
 
-	hasDebug := os.Getenv("DEBUG") != ""
+	if !cmdFactory.IOStreams.ColorEnabled() {
+		surveyCore.DisableColor = true
+		ansi.DisableColors(true)
+	} else {
+		// override survey's poor choice of color
+		surveyCore.TemplateFuncsWithColor["color"] = func(style string) string {
+			switch style {
+			case "white":
+				return ansi.ColorCode("default")
+			default:
+				return ansi.ColorCode(style)
+			}
+		}
+	}
 
-	stderr := utils.NewColorable(os.Stderr)
+	// Enable running gh from Windows File Explorer's address bar. Without this, the user is told to stop and run from a
+	// terminal. With this, a user can clone a repo (or take other actions) directly from explorer.
+	if len(os.Args) > 1 && os.Args[1] != "" {
+		cobra.MousetrapHelpText = ""
+	}
+
+	rootCmd, err := root.NewCmdRoot(cmdFactory, buildVersion, buildDate)
+	if err != nil {
+		fmt.Fprintf(stderr, "failed to create root command: %s\n", err)
+		return exitError
+	}
 
 	expandedArgs := []string{}
 	if len(os.Args) > 0 {
 		expandedArgs = os.Args[1:]
 	}
 
-	cmd, _, err := command.RootCmd.Traverse(expandedArgs)
-	if err != nil || cmd == command.RootCmd {
-		originalArgs := expandedArgs
-		expandedArgs, err = command.ExpandAlias(os.Args)
-		if err != nil {
-			fmt.Fprintf(stderr, "failed to process aliases:  %s\n", err)
-			os.Exit(2)
-		}
-		if hasDebug {
-			fmt.Fprintf(stderr, "%v -> %v\n", originalArgs, expandedArgs)
-		}
+	// translate `gh help <command>` to `gh <command> --help` for extensions.
+	if len(expandedArgs) >= 2 && expandedArgs[0] == "help" && isExtensionCommand(rootCmd, expandedArgs[1:]) {
+		expandedArgs = expandedArgs[1:]
+		expandedArgs = append(expandedArgs, "--help")
 	}
 
-	command.RootCmd.SetArgs(expandedArgs)
+	rootCmd.SetArgs(expandedArgs)
 
-	if cmd, err := command.RootCmd.ExecuteC(); err != nil {
-		printError(os.Stderr, err, cmd, hasDebug)
-		os.Exit(1)
+	if cmd, err := rootCmd.ExecuteContextC(ctx); err != nil {
+		var pagerPipeError *iostreams.ErrClosedPagerPipe
+		var noResultsError cmdutil.NoResultsError
+		var extError *root.ExternalCommandExitError
+		var authError *root.AuthError
+		if err == cmdutil.SilentError {
+			return exitError
+		} else if err == cmdutil.PendingError {
+			return exitPending
+		} else if cmdutil.IsUserCancellation(err) {
+			if errors.Is(err, terminal.InterruptErr) {
+				// ensure the next shell prompt will start on its own line
+				fmt.Fprint(stderr, "\n")
+			}
+			return exitCancel
+		} else if errors.As(err, &authError) {
+			return exitAuth
+		} else if errors.As(err, &pagerPipeError) {
+			// ignore the error raised when piping to a closed pager
+			return exitOK
+		} else if errors.As(err, &noResultsError) {
+			if cmdFactory.IOStreams.IsStdoutTTY() {
+				fmt.Fprintln(stderr, noResultsError.Error())
+			}
+			// no results is not a command failure
+			return exitOK
+		} else if errors.As(err, &extError) {
+			// pass on exit codes from extensions and shell aliases
+			return exitCode(extError.ExitCode())
+		}
+
+		printError(stderr, err, cmd, hasDebug)
+
+		if strings.Contains(err.Error(), "Incorrect function") {
+			fmt.Fprintln(stderr, "You appear to be running in MinTTY without pseudo terminal support.")
+			fmt.Fprintln(stderr, "To learn about workarounds for this error, run:  gh help mintty")
+			return exitError
+		}
+
+		var httpErr api.HTTPError
+		if errors.As(err, &httpErr) && httpErr.StatusCode == 401 {
+			fmt.Fprintln(stderr, "Try authenticating with:  gh auth login")
+		} else if u := factory.SSOURL(); u != "" {
+			// handles organization SAML enforcement error
+			fmt.Fprintf(stderr, "Authorize in your web browser:  %s\n", u)
+		} else if msg := httpErr.ScopesSuggestion(); msg != "" {
+			fmt.Fprintln(stderr, msg)
+		}
+
+		return exitError
+	}
+	if root.HasFailed() {
+		return exitError
 	}
 
+	updateCancel() // if the update checker hasn't completed by now, abort it
 	newRelease := <-updateMessageChan
 	if newRelease != nil {
-		msg := fmt.Sprintf("%s %s → %s\n%s",
+		isHomebrew := isUnderHomebrew(cmdFactory.Executable())
+		if isHomebrew && isRecentRelease(newRelease.PublishedAt) {
+			// do not notify Homebrew users before the version bump had a chance to get merged into homebrew-core
+			return exitOK
+		}
+		fmt.Fprintf(stderr, "\n\n%s %s → %s\n",
 			ansi.Color("A new release of gh is available:", "yellow"),
-			ansi.Color(currentVersion, "cyan"),
-			ansi.Color(newRelease.Version, "cyan"),
+			ansi.Color(strings.TrimPrefix(buildVersion, "v"), "cyan"),
+			ansi.Color(strings.TrimPrefix(newRelease.Version, "v"), "cyan"))
+		if isHomebrew {
+			fmt.Fprintf(stderr, "To upgrade, run: %s\n", "brew upgrade gh")
+		}
+		fmt.Fprintf(stderr, "%s\n\n",
 			ansi.Color(newRelease.URL, "yellow"))
-
-		stderr := utils.NewColorable(os.Stderr)
-		fmt.Fprintf(stderr, "\n\n%s\n\n", msg)
 	}
+
+	return exitOK
+}
+
+// isExtensionCommand returns true if args resolve to an extension command.
+func isExtensionCommand(rootCmd *cobra.Command, args []string) bool {
+	c, _, err := rootCmd.Find(args)
+	return err == nil && c != nil && c.GroupID == "extension"
 }
 
 func printError(out io.Writer, err error, cmd *cobra.Command, debug bool) {
-	if err == cmdutil.SilentError {
-		return
-	}
-
 	var dnsError *net.DNSError
 	if errors.As(err, &dnsError) {
 		fmt.Fprintf(out, "error connecting to %s\n", dnsError.Name)
 		if debug {
 			fmt.Fprintln(out, dnsError)
 		}
-		fmt.Fprintln(out, "check your internet connection or githubstatus.com")
+		fmt.Fprintln(out, "check your internet connection or https://githubstatus.com")
 		return
 	}
 
@@ -97,24 +222,55 @@ func printError(out io.Writer, err error, cmd *cobra.Command, debug bool) {
 }
 
 func shouldCheckForUpdate() bool {
-	return updaterEnabled != "" && !isCompletionCommand() && utils.IsTerminal(os.Stderr)
+	if os.Getenv("GH_NO_UPDATE_NOTIFIER") != "" {
+		return false
+	}
+	if os.Getenv("CODESPACES") != "" {
+		return false
+	}
+	return updaterEnabled != "" && !isCI() && isTerminal(os.Stdout) && isTerminal(os.Stderr)
 }
 
-func isCompletionCommand() bool {
-	return len(os.Args) > 1 && os.Args[1] == "completion"
+func isTerminal(f *os.File) bool {
+	return isatty.IsTerminal(f.Fd()) || isatty.IsCygwinTerminal(f.Fd())
 }
 
-func checkForUpdate(currentVersion string) (*update.ReleaseInfo, error) {
+// based on https://github.com/watson/ci-info/blob/HEAD/index.js
+func isCI() bool {
+	return os.Getenv("CI") != "" || // GitHub Actions, Travis CI, CircleCI, Cirrus CI, GitLab CI, AppVeyor, CodeShip, dsari
+		os.Getenv("BUILD_NUMBER") != "" || // Jenkins, TeamCity
+		os.Getenv("RUN_ID") != "" // TaskCluster, dsari
+}
+
+func checkForUpdate(ctx context.Context, f *cmdutil.Factory, currentVersion string) (*update.ReleaseInfo, error) {
 	if !shouldCheckForUpdate() {
 		return nil, nil
 	}
-
-	client, err := command.BasicClient()
+	httpClient, err := f.HttpClient()
 	if err != nil {
 		return nil, err
 	}
-
 	repo := updaterEnabled
-	stateFilePath := path.Join(config.ConfigDir(), "state.yml")
-	return update.CheckForUpdate(client, stateFilePath, repo, currentVersion)
+	stateFilePath := filepath.Join(config.StateDir(), "state.yml")
+	return update.CheckForUpdate(ctx, httpClient, stateFilePath, repo, currentVersion)
+}
+
+func isRecentRelease(publishedAt time.Time) bool {
+	return !publishedAt.IsZero() && time.Since(publishedAt) < time.Hour*24
+}
+
+// Check whether the gh binary was found under the Homebrew prefix
+func isUnderHomebrew(ghBinary string) bool {
+	brewExe, err := safeexec.LookPath("brew")
+	if err != nil {
+		return false
+	}
+
+	brewPrefixBytes, err := exec.Command(brewExe, "--prefix").Output()
+	if err != nil {
+		return false
+	}
+
+	brewBinPrefix := filepath.Join(strings.TrimSpace(string(brewPrefixBytes)), "bin") + string(filepath.Separator)
+	return strings.HasPrefix(ghBinary, brewBinPrefix)
 }
