@@ -18,7 +18,7 @@ description: |
   - `gh help`
 adopt-info: gh
 grade: stable
-confinement: strict  # classic
+confinement: classic
 base: core24
 license: MIT
 parts:
@@ -33,8 +33,6 @@ parts:
     - gcc
     stage-packages:
     - git
-    - nano
-    - ssh
     override-pull: |
       snapcraftctl pull
       snapcraftctl set-version `(git describe --tags | sed 's/^v//') 2>/dev/null || git rev-parse --short HEAD`
@@ -45,12 +43,4 @@ parts:
 apps:
   gh:
     command: gh
-    plugs:
-    - home
-    - network
-    - network-bind
-    - desktop
-    - ssh-keys
     completer: completion.sh
-    environment:
-      GIT_EDITOR: nano
