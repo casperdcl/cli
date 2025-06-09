@@ -111,8 +111,7 @@ MSI installers are available for download on the [releases page][].
 
 Install:
 
-1. `sudo snap install gh`
-2. `sudo snap connect gh:ssh-keys` grant ssh access
+`sudo snap install gh --classic`
 
 Updates are automatically checked for (and if available, downloaded) every 6 hours.
 
