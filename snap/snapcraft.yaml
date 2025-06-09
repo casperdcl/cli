@@ -10,8 +10,11 @@ description: |
 
   _Usage_
 
-  - `gh pr [status, list, view, checkout, create]`
-  - `gh issue [status, list, view, create]`
+  - `gh pr [create, list, status, view, checkout, ...]`
+  - `gh issue [create, list, status, view, ...]`
+  - `gh [auth, browse, codespace, gist, org, project, release, repo, ...]`
+  - `gh [cache, run, workflow, ...]`
+  - `gh [alias, api, attestation, config, extension, gpg-key, label, preview, ruleset, search, secret, ssh-key, status, variable, ...]`
   - `gh help`
 adopt-info: gh
 grade: stable
