@@ -16,7 +16,7 @@ description: |
 adopt-info: gh
 grade: stable
 confinement: strict  # classic
-base: core18
+base: core24
 license: MIT
 parts:
   gh:
